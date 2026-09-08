@@ -47,16 +47,16 @@
                 </div>
             </div>
 
+            {{-- Through <x-alert>, never a bare class="alert" and never
+                 class="field-error": the first drops content into the grid's 20px
+                 icon column, the second is display:none unconditionally. --}}
             @if ($errors->any())
-                <div class="card mb-4">
-                    <div class="card-body">
-                        <ul>
-                            @foreach ($errors->all() as $error)
-                                <li class="field-error">{{ $error }}</li>
-                            @endforeach
-                        </ul>
-                    </div>
-                </div>
+                <x-alert type="danger" class="mb-4">
+                    <strong>{{ __('employee-meals::meals.employees.errors_title') }}</strong>
+                    @foreach ($errors->all() as $error)
+                        <br>{{ $error }}
+                    @endforeach
+                </x-alert>
             @endif
 
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">

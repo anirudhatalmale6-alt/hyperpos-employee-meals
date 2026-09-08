@@ -113,11 +113,69 @@ PASS - one meal, one subsidy, one ledger line.
 | Phase 1 piece | State |
 | --- | --- |
 | 1. Employee 360 record + access card | **done** |
-| 2. Card and fingerprint enrolment | to do — ports from an existing DigitalPersona build |
+| 2. Card and fingerprint enrolment | **done** — screen, capture, storage and 1-to-many identification |
 | 3. Meal entitlement engine | **done**, including the double-claim block |
 | 4. Employee pre-ordering | to do |
 | 5. POS identification + subsidy at checkout | to do |
 | 6. Kitchen and subsidy reporting | to do |
+
+## Fingerprints
+
+The DigitalPersona JavaScript SDK only **captures**. Comparing two prints is
+FingerJet, a Windows native library from the paid SDK, so on a Linux host the
+comparison is ours: `resources/python/fpmatch.py` does segment → orientation
+field → Gabor bank → binarise → thin → crossing-number minutiae → Hough vote on
+the transform → count agreeing pairs.
+
+Requirements, and the screen reports each **separately** so a failure names
+itself:
+
+| Needs | Where |
+| --- | --- |
+| HID Authentication Device Client | the till PC (Windows) — a browser cannot see a USB reader without it |
+| Python 3 with NumPy and OpenCV | the web server — enrolment works without it, identification does not |
+
+Download the client from <https://crossmatch.hid.gl/lite-client/>. HID renamed
+it, so searching for "Lite Client" finds nothing.
+
+### Measured, not assumed
+
+On four real FVC prints (two impressions each of two fingers) plus synthetic
+re-presses — shifted, rotated, partly cropped, noised:
+
+```
+different fingers (impostor) : 0, 0, 2, 3
+same finger, good overlap    : 16, 20, 21, 47, 51, 57, 63, 74
+same finger, poor overlap    : 2, 10
+```
+
+`ACCEPT = 15` — five times the worst impostor, below all but the poor-overlap
+genuine pairs. The bias is deliberate: a false reject costs one more press, a
+false accept gives one employee another's subsidy and corrupts the billing.
+
+⚠️ Two fingers is a small sample. Re-run the measurement on the real reader with
+real staff before trusting it in production.
+
+Three traps, all of which fail late and confusingly:
+
+- `SampleFormat.PngImage` is **5**, not 4 — the enum skips 4 (Raw 1,
+  Intermediate 2, Compressed 3, PngImage 5).
+- Samples arrive **base64url** (`-` `_`, no padding). `base64_decode()` does not
+  error on those; it returns corrupt bytes and fails much later.
+- The UMD bundles publish under **`dp.devices`**, not a global called
+  `Fingerprint`, and `event.samples` is **already parsed** — parsing it again
+  throws and the touch is silently lost.
+
+## Theme notes
+
+Two classes in this theme do not do what their names suggest, and both were
+found the hard way:
+
+- `field-error` is `display:none` **unconditionally**. It exists only to turn a
+  sibling input red through `:has()`. Text placed in it is invisible.
+- `alert` is a three-column grid (`20px 1fr auto`). Content dropped straight
+  into it lands in the 20px icon column and wraps one word per line. Always go
+  through the `<x-alert type="...">` component.
 
 ## Hooks this plugin uses
 

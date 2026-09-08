@@ -46,6 +46,13 @@ class EmployeeMealsServiceProvider extends ServiceProvider
                         'href' => route('employee-meals.employees.index'),
                         'permission' => 'employee-meals.employees.view',
                     ],
+                    [
+                        'id' => 'employee-meals-enrol',
+                        'label' => 'Card & Fingerprint',
+                        'icon' => 'key',
+                        'href' => route('employee-meals.enrol.index'),
+                        'permission' => 'employee-meals.credentials.manage',
+                    ],
                 ],
             ];
 

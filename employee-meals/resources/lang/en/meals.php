@@ -4,6 +4,77 @@ return [
     'nav' => [
         'section' => 'Employee Meals',
         'employees' => 'Employees',
+        'enrol' => 'Card & Fingerprint',
+    ],
+
+    'fingerprints' => [
+        'title' => 'Card and fingerprint enrolment',
+        'sub' => 'Find the employee, then enrol their credentials. The card and the fingers all identify the same person.',
+
+        'find' => 'Find employee',
+        'find_placeholder' => 'Name, employee number or card',
+        'search' => 'Search',
+        'no_matches' => 'No employee matches that search.',
+        'choose' => 'Choose an employee to enrol.',
+        'change' => 'Change employee',
+
+        'card' => [
+            'title' => 'Access card',
+            'label' => 'Scan card',
+            'help' => 'Scan the card into this box - the reader types it like a keyboard. A card can belong to only one employee.',
+            'save' => 'Save card',
+            'saved' => 'Card saved.',
+            'cleared' => 'Card removed.',
+        ],
+
+        'reader' => [
+            'title' => 'Fingerprint reader',
+            'libraries' => 'Reader libraries',
+            'agent' => 'Reader service',
+            'devices' => 'Readers found',
+            'matcher' => 'Matching engine',
+            'checking' => 'Checking…',
+            'loaded' => 'Loaded',
+            'not_loaded' => 'Not loaded',
+            'answering' => 'Answering',
+            'not_answering' => 'Not answering',
+            'none' => 'None',
+            'install_title' => 'The reader service is not running on this PC.',
+            'install_body' => 'A browser cannot see a USB reader on its own. Install the HID Authentication Device Client on this Windows PC, then reload this page. Nothing on the website can replace it.',
+            'install_link' => 'https://crossmatch.hid.gl/lite-client/',
+        ],
+
+        'fingers' => [
+            'title' => 'Fingers',
+            'right_thumb' => 'Right thumb',
+            'right_index' => 'Right index',
+            'left_thumb' => 'Left thumb',
+            'left_index' => 'Left index',
+            'enrolled' => 'Enrolled',
+            'not_enrolled' => 'Not enrolled',
+            'samples' => ':count of :target touches',
+            'capture' => 'Capture',
+            'capturing' => 'Place the finger on the reader…',
+            'clear' => 'Clear',
+            'target_help' => 'Four touches per finger. Each probe is matched against every stored touch and the best one counts, so one crooked press does no harm.',
+        ],
+
+        'test' => [
+            'title' => 'Test',
+            'help' => 'Put any enrolled finger on the reader. Nobody types a name first - this is the same search the till will do.',
+            'start' => 'Scan to identify',
+            'accepted' => 'Identified',
+            'uncertain' => 'Not sure - ask for another press',
+            'rejected' => 'No match',
+            'score' => 'Score :score, threshold :threshold, runner-up :runner',
+            'runner_help' => 'The runner-up is the score of the next closest person. A high score means little if second place is right behind it.',
+        ],
+
+        'errors' => [
+            'not_an_image' => 'That capture did not arrive as a readable image. Try again.',
+            'too_faint' => 'That press was too faint to store - only :count usable points were found. Press a little firmer and try again.',
+            'no_employee' => 'Choose an employee first.',
+        ],
     ],
 
     'employees' => [
@@ -15,6 +86,7 @@ return [
         'created' => ':name has been added.',
         'saved' => ':name has been saved.',
         'removed' => ':name has been removed.',
+        'errors_title' => 'That could not be saved.',
         'empty' => 'No employees yet.',
         'empty_sub' => 'Add the first employee to start issuing meal entitlements.',
         'no_results' => 'No employee matches that search.',

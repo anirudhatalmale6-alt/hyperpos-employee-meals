@@ -1,6 +1,7 @@
 <?php
 
 use EmployeeMeals\Http\Controllers\EmployeeController;
+use EmployeeMeals\Http\Controllers\FingerprintController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -23,4 +24,26 @@ Route::middleware(['ensure.installed', 'auth', 'store.selected', 'set.locale'])
         Route::get('lookup/card', [EmployeeController::class, 'lookupByCard'])
             ->middleware('throttle:240,1')
             ->name('lookup.card');
+
+        // ── Card and fingerprint enrolment ──────────────────────────────
+        Route::get('enrol', [FingerprintController::class, 'index'])->name('enrol.index');
+
+        // ⚠️ No .js on these paths. The Laravel front controller's rewrite
+        // commonly excludes anything ending in .js, so a registered route with
+        // that extension still 404s. Name them plainly and map to the file in
+        // the controller.
+        Route::get('sdk/{name}', [FingerprintController::class, 'sdk'])
+            ->whereIn('name', ['websdk', 'core', 'devices'])
+            ->name('sdk');
+
+        Route::post('enrol/{employee}/card', [FingerprintController::class, 'card'])
+            ->name('enrol.card');
+        Route::post('enrol/{employee}/finger', [FingerprintController::class, 'store'])
+            ->middleware('throttle:120,1')
+            ->name('enrol.store');
+        Route::delete('enrol/{employee}/finger/{finger}', [FingerprintController::class, 'destroy'])
+            ->name('enrol.destroy');
+        Route::post('enrol/test', [FingerprintController::class, 'test'])
+            ->middleware('throttle:120,1')
+            ->name('enrol.test');
     });
