@@ -11,9 +11,33 @@ of this having to be redone.
 
 ## Install
 
-Copy the `employee-meals` folder into the Hyper POS `plugins/` directory, then
-enable it from **Settings → Plugins**. Enabling runs the migrations, registers
-the permissions and seeds the starting data.
+Hyper installs it itself — no file manager, no SSH.
+
+1. Log in as the **owner / super admin**. `PluginController::ownerOnly()`
+   aborts 403 for anyone else, on every action including the listing.
+2. **Settings → Plugins**: choose the zip, **type your own login password**,
+   upload.
+3. Click **Enable** and **type your password again**.
+4. *Employee Meals* appears at the foot of the sidebar.
+
+Enabling runs the migrations, registers the permissions and seeds Cipla plus
+the R38 plan.
+
+⚠️ **Both the upload and the enable require `current_password`** — the
+operator's own login password, validated by Laravel's `current_password` rule.
+Miss it and the request comes back 422 with the page apparently unchanged,
+which reads as "the upload did nothing". Uninstall additionally wants
+`confirm_slug` typed out as `employee-meals`.
+
+⚠️ **Never upload a replacement over an enabled plugin — disable it first.**
+`InstallPlugin` moves the existing directory aside before moving the new one
+in; when that sequence was interrupted during testing the plugin folder was
+left **missing** and had to be restored from the zip. Uninstalling does NOT
+drop the `em_` tables, so employee and ledger data survives.
+
+Packaging: zip the `employee-meals` folder so `plugin.json` sits either at the
+archive root or inside exactly one top-level folder — `packageRoot()` rejects
+anything else. Limit 50 MB.
 
 ## What it adds
 
