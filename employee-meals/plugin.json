@@ -1,0 +1,54 @@
+{
+    "slug": "employee-meals",
+    "name": "Elevate Employee Meal Management",
+    "version": "0.1.0",
+    "author": "Anirudha Talmale",
+    "description": "Employee records, access card and fingerprint credentials, meal entitlement with a double-claim block, and subsidy applied to the sale at the till. An extension of Hyper POS - no core functionality is replaced.",
+    "provider": "EmployeeMeals\\EmployeeMealsServiceProvider",
+    "requires": {
+        "core": ">=1.1.0",
+        "php": ">=8.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "EmployeeMeals\\": "src"
+        }
+    },
+    "capabilities": [
+        "employee-master",
+        "meal-entitlement",
+        "pos-identification"
+    ],
+    "permissions": [
+        {
+            "key": "employee-meals.employees.view",
+            "label": "View employees",
+            "group": "Employee meals"
+        },
+        {
+            "key": "employee-meals.employees.manage",
+            "label": "Create and edit employees",
+            "group": "Employee meals"
+        },
+        {
+            "key": "employee-meals.credentials.manage",
+            "label": "Enrol access cards and fingerprints",
+            "group": "Employee meals"
+        },
+        {
+            "key": "employee-meals.identify",
+            "label": "Identify an employee at the till",
+            "group": "Employee meals"
+        },
+        {
+            "key": "employee-meals.settings.manage",
+            "label": "Manage subsidy plans and meal settings",
+            "group": "Employee meals"
+        },
+        {
+            "key": "employee-meals.reports.view",
+            "label": "View subsidy and collection reports",
+            "group": "Employee meals"
+        }
+    ]
+}

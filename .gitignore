@@ -1,0 +1,4 @@
+# Nothing from the Hyper POS application itself belongs in this repository -
+# it is a licensed product. This repo holds only the plugin.
+/vendor/
+.env
