@@ -286,6 +286,20 @@
 
                             <p class="field-help">{{ __('employee-meals::meals.fingerprints.fingers.target_help') }}</p>
                             <p class="field-help" x-text="message"></p>
+
+                            {{-- The capture log. "Nothing happens" is the least
+                                 fixable report there is; this shows exactly how far
+                                 the reader got, and the operator can read it back
+                                 without opening developer tools. --}}
+                            <div x-show="trace.length" x-cloak>
+                                <div class="field-label">{{ __('employee-meals::meals.fingerprints.trace.title') }}</div>
+                                <div style="font-family:ui-monospace,monospace;font-size:11.5px;line-height:1.6">
+                                    <template x-for="line in trace" :key="line">
+                                        <div x-text="line"></div>
+                                    </template>
+                                </div>
+                                <p class="field-help">{{ __('employee-meals::meals.fingerprints.trace.help') }}</p>
+                            </div>
                         </div>
                     </div>
                 @endif
@@ -327,6 +341,8 @@
                 // late CommunicationFailed overwriting the useful message.
                 agentVerdict: 'unknown',
                 devices: [],
+                deviceId: null,
+                trace: [],
                 busy: false,
                 message: '',
                 cardNumber: '',
@@ -389,12 +405,17 @@
                         this.agentOk = true;
                         this.agentVerdict = 'present';
                         this.devices = list || [];
+                        // Keep the first reader's id - startAcquisition names it
+                        // explicitly rather than sending the "any device" zero GUID.
+                        this.deviceId = (this.devices && this.devices.length) ? this.devices[0] : null;
+                        this.log('readers found: ' + JSON.stringify(this.devices));
                     } catch (e) {
                         // The agent is not there. Decide it ONCE - the SDK retries on its
                         // own and then reports a dropped connection, which would otherwise
                         // replace this with a message about losing something that never
                         // existed.
                         this.agentOk = false;
+                        this.log('enumerateDevices failed: ' + (e && (e.message || JSON.stringify(e))));
                         if (this.agentVerdict === 'unknown') { this.agentVerdict = 'missing'; }
                     }
                 },
@@ -402,16 +423,22 @@
                 async capture(finger) {
                     if (!this.routes.store) { return; }
                     const sample = await this.acquire();
-                    if (!sample) { return; }
+                    if (!sample) {
+                        this.message = @js(__('employee-meals::meals.fingerprints.errors.nothing_captured'));
+                        return;
+                    }
 
                     this.busy = true;
                     try {
+                        this.log('sending the sample to the server');
                         const res = await this.post(this.routes.store, { finger, sample });
                         if (res.ok) {
                             this.state = res.state;
                             this.message = res.minutiae + ' points captured.';
+                            this.log('stored: ' + res.minutiae + ' points');
                         } else {
                             this.message = res.message || 'That capture could not be stored.';
+                            this.log('server refused it: ' + (res.message || 'no reason given'));
                         }
                     } finally {
                         this.busy = false;
@@ -431,10 +458,14 @@
 
                 async runTest() {
                     const sample = await this.acquire();
-                    if (!sample) { return; }
+                    if (!sample) {
+                        this.message = @js(__('employee-meals::meals.fingerprints.errors.nothing_captured'));
+                        return;
+                    }
 
                     this.busy = true;
                     try {
+                        this.log('sending the sample for identification');
                         const res = await this.post(this.routes.test, { sample });
                         this.testResult = res.ok ? res : null;
                         if (!res.ok) { this.message = res.message || ''; }
@@ -443,46 +474,101 @@
                     }
                 },
 
-                /** One touch from the reader, as a PNG. */
+                /** Append a line to the on-screen capture log. */
+                log(line) {
+                    const stamp = new Date().toLocaleTimeString();
+                    this.trace.unshift(stamp + '  ' + line);
+                    this.trace = this.trace.slice(0, 10);
+                    console.log('[employee-meals] ' + line);
+                },
+
+                /**
+                 * One touch from the reader, as a PNG.
+                 *
+                 * Every step is logged to the screen. "Nothing happens" is the least
+                 * fixable bug report there is, so the operator can read exactly how
+                 * far it got and send that back.
+                 */
                 acquire() {
                     const api = this.reader();
-                    if (!api) { this.message = 'The reader service is not available.'; return null; }
+                    if (!api) {
+                        this.message = @js(__('employee-meals::meals.fingerprints.errors.no_reader'));
+                        this.log('no reader object - the SDK did not load');
+                        return null;
+                    }
 
                     this.message = this.text.capturing;
 
                     return new Promise((resolve) => {
                         let settled = false;
+                        let timer = null;
+
+                        const handlers = {
+                            SamplesAcquired: (event) => {
+                                // ⚠️ `event.samples` is ALREADY an array - the bundle
+                                // parses it. Parsing it again throws and the touch is
+                                // silently lost. Tolerate a string just in case.
+                                let samples = event && event.samples;
+                                if (typeof samples === 'string') {
+                                    try { samples = JSON.parse(samples); } catch (e) { samples = null; }
+                                }
+                                const one = Array.isArray(samples) && samples.length ? samples[0] : null;
+                                this.log(one ? ('sample received, ' + one.length + ' characters')
+                                             : 'a sample arrived but it was empty');
+                                done(one);
+                            },
+                            AcquisitionStarted: () => this.log('reader is armed - place the finger'),
+                            AcquisitionStopped: () => this.log('acquisition stopped'),
+                            QualityReported: (e) => this.log('quality code ' + (e && e.quality)),
+                            DeviceConnected: () => this.log('reader connected'),
+                            DeviceDisconnected: () => { this.log('reader disconnected'); done(null); },
+                            ErrorOccurred: (e) => {
+                                this.log('reader error: ' + JSON.stringify(e && e.error));
+                                done(null);
+                            },
+                            CommunicationFailed: () => {
+                                this.log('the reader service stopped answering');
+                                done(null);
+                            },
+                        };
 
                         const done = (sample) => {
                             if (settled) { return; }
                             settled = true;
-                            api.off('SamplesAcquired', onSamples);
-                            api.off('ErrorOccurred', onError);
-                            api.stopAcquisition().catch(() => {});
+                            if (timer) { clearTimeout(timer); }
+                            Object.keys(handlers).forEach((name) => {
+                                try { api.off(name, handlers[name]); } catch (e) {}
+                            });
+                            api.stopAcquisition(this.deviceId || undefined).catch(() => {});
                             resolve(sample);
                         };
 
-                        // ⚠️ `event.samples` is ALREADY an array - the bundle parses it
-                        // before handing it over. Parsing it again throws and the touch
-                        // is silently lost.
-                        const onSamples = (event) => {
-                            const samples = event && event.samples;
-                            done(Array.isArray(samples) && samples.length ? samples[0] : null);
-                        };
-                        const onError = () => done(null);
-
-                        api.on('SamplesAcquired', onSamples);
-                        api.on('ErrorOccurred', onError);
+                        Object.keys(handlers).forEach((name) => api.on(name, handlers[name]));
 
                         // ⚠️ SampleFormat.PngImage is 5, not 4 - the enum skips 4
-                        // (Raw 1, Intermediate 2, Compressed 3, PngImage 5). Asking for
-                        // 4 gets nothing useful and fails much later as an undecodable
-                        // image. Verified in the shipped bundle, not assumed.
+                        // (Raw 1, Intermediate 2, Compressed 3, PngImage 5). Verified
+                        // in the shipped bundle, not assumed.
                         const formats = (window.dp && window.dp.devices && window.dp.devices.SampleFormat) || {};
                         const PNG = typeof formats.PngImage === 'number' ? formats.PngImage : 5;
 
-                        api.startAcquisition(PNG).catch(() => done(null));
-                        setTimeout(() => done(null), 20000);
+                        // ⚠️ Name the reader explicitly. Left out, the SDK sends an
+                        // all-zero device id meaning "any", which some installs simply
+                        // do not answer - the call resolves and then nothing ever
+                        // happens, which is precisely the symptom reported.
+                        this.log('starting acquisition, format ' + PNG
+                            + (this.deviceId ? ', reader ' + this.deviceId : ', any reader'));
+
+                        api.startAcquisition(PNG, this.deviceId || undefined)
+                            .then(() => this.log('startAcquisition accepted'))
+                            .catch((e) => {
+                                this.log('startAcquisition refused: ' + (e && (e.message || JSON.stringify(e))));
+                                done(null);
+                            });
+
+                        timer = setTimeout(() => {
+                            this.log('gave up after 30 seconds with no finger');
+                            done(null);
+                        }, 30000);
                     });
                 },
 

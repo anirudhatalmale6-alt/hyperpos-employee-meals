@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 /**
@@ -207,6 +208,13 @@ class EmployeeController extends \App\Http\Controllers\Controller
     /**
      * A photograph arrives one of two ways - a chosen file, or a still taken
      * with the webcam on this PC. Both end up in the same place.
+     *
+     * ⚠️ A capture that cannot be stored throws rather than returning null.
+     * The first version swallowed the failure and saved the employee with no
+     * photograph and no message, which is indistinguishable from the feature
+     * being broken - and that is exactly how the client experienced it.
+     *
+     * @throws ValidationException
      */
     private function storePhoto(Request $request, ?string $existing): ?string
     {
@@ -216,7 +224,7 @@ class EmployeeController extends \App\Http\Controllers\Controller
 
         $capture = (string) $request->input('photo_capture', '');
         if ($capture !== '') {
-            return $this->storeCapture($capture) ?? $existing;
+            return $this->storeCapture($capture);
         }
 
         return $existing;
@@ -225,29 +233,38 @@ class EmployeeController extends \App\Http\Controllers\Controller
     /**
      * Decode a `data:image/jpeg;base64,…` still from the camera.
      *
-     * ⚠️ The bytes are checked to be a real image before anything is written.
-     * A data URI is just a string from the browser, so trusting the declared
-     * type would let anything at all be saved under a .jpg name.
+     * The bytes are checked to be a real image before anything is written - a
+     * data URI is just a string from the browser, so the declared type proves
+     * nothing.
+     *
+     * @throws ValidationException
      */
-    private function storeCapture(string $dataUri): ?string
+    private function storeCapture(string $dataUri): string
     {
-        if (! preg_match('#^data:image/(jpeg|jpg|png);base64,#i', $dataUri, $m)) {
-            return null;
+        $fail = fn (string $why) => throw ValidationException::withMessages([
+            'photo' => __('employee-meals::meals.employees.photo.failed', ['reason' => $why]),
+        ]);
+
+        if (! preg_match('#^data:image/(jpeg|jpg|png);base64,#i', $dataUri)) {
+            $fail(__('employee-meals::meals.employees.photo.reason_not_a_data_uri'));
         }
 
         $binary = base64_decode(substr($dataUri, strpos($dataUri, ',') + 1), true);
         if ($binary === false || $binary === '') {
-            return null;
+            $fail(__('employee-meals::meals.employees.photo.reason_undecodable'));
         }
 
         $info = @getimagesizefromstring($binary);
         if ($info === false || ! in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {
-            return null;
+            $fail(__('employee-meals::meals.employees.photo.reason_not_an_image'));
         }
 
         $extension = $info[2] === IMAGETYPE_PNG ? 'png' : 'jpg';
         $path = 'employee-meals/photos/'.Str::uuid()->toString().'.'.$extension;
-        Storage::disk('public')->put($path, $binary);
+
+        if (! Storage::disk('public')->put($path, $binary)) {
+            $fail(__('employee-meals::meals.employees.photo.reason_not_writable'));
+        }
 
         return $path;
     }

@@ -323,11 +323,20 @@
                 capture() {
                     const video = this.$refs.video;
                     const canvas = this.$refs.canvas;
-                    canvas.width = video.videoWidth || 640;
-                    canvas.height = video.videoHeight || 480;
+
+                    // ⚠️ Scale DOWN to a longest side of 640 before encoding. A modern
+                    // webcam hands back 1080p or better, and a full-size JPEG as a
+                    // base64 form field runs to hundreds of KB - big enough for a
+                    // host's post_max_size or a mod_security rule to drop the whole
+                    // POST, which shows up as "the photo just does not save". A face
+                    // for identification needs nothing like that resolution.
+                    const sw = video.videoWidth || 640;
+                    const sh = video.videoHeight || 480;
+                    const scale = Math.min(1, 640 / Math.max(sw, sh));
+                    canvas.width = Math.round(sw * scale);
+                    canvas.height = Math.round(sh * scale);
                     canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                    // JPEG at 0.85 keeps a 640x480 face well under the size limit.
                     this.captured = canvas.toDataURL('image/jpeg', 0.85);
                     this.preview = this.captured;
 
@@ -336,7 +345,13 @@
                     if (this.$refs.file) { this.$refs.file.value = ''; }
 
                     this.stopCamera();
-                    this.message = @js(__('employee-meals::meals.employees.photo.taken'));
+
+                    // Say the size out loud. If a photo ever fails to save, the first
+                    // question is how big it was, and the operator can answer it
+                    // without opening developer tools.
+                    const kb = Math.round(this.captured.length / 1024);
+                    this.message = @js(__('employee-meals::meals.employees.photo.taken'))
+                        + ' (' + canvas.width + 'x' + canvas.height + ', ' + kb + ' KB)';
                 },
 
                 stopCamera() {

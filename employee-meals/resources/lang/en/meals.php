@@ -74,7 +74,14 @@ return [
             'runner_help' => 'The runner-up is the score of the next closest person. A high score means little if second place is right behind it.',
         ],
 
+        'trace' => [
+            'title' => 'Reader log',
+            'help' => 'The last few things the reader did. If a capture does not work, send me these lines.',
+        ],
+
         'errors' => [
+            'no_reader' => 'The reader software did not load on this page. Reload the page and try again.',
+            'nothing_captured' => 'No fingerprint came back from the reader. The reader log below shows how far it got.',
             'not_an_image' => 'That capture did not arrive as a readable image. Try again.',
             'too_faint' => 'That press was too faint to store - only :count usable points were found. Press a little firmer and try again.',
             'no_employee' => 'Choose an employee first.',
@@ -101,6 +108,11 @@ return [
             'taken' => 'Photo taken. Save the employee to keep it.',
             'no_camera' => 'The camera could not be opened. Check the browser has permission.',
             'needs_https' => 'The camera only works on a secure (https) address. Choose a file instead.',
+            'failed' => 'The photograph could not be saved: :reason',
+            'reason_not_a_data_uri' => 'the picture did not reach the server. If the camera photo looked fine on screen, the server may be rejecting the size of the upload.',
+            'reason_undecodable' => 'the picture arrived damaged.',
+            'reason_not_an_image' => 'what arrived was not a JPEG or PNG image.',
+            'reason_not_writable' => 'the storage folder could not be written to.',
         ],
 
         'empty' => 'No employees yet.',
