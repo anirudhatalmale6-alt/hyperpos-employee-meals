@@ -120,13 +120,34 @@ class FingerprintController extends \App\Http\Controllers\Controller
             ], 422);
         }
 
+        /*
+         * ⚠️ A print is STORED whether or not this server can compare prints.
+         *
+         * The matcher needs Python with OpenCV, which shared hosting often does
+         * not have. An earlier version refused the whole enrolment in that case
+         * - while the screen said, correctly, that prints could still be
+         * enrolled and only identification needed the matcher. The message and
+         * the behaviour disagreed, and the message was the one that was right:
+         * the reader had already done its job and handed over a perfectly good
+         * image, and throwing it away helped nobody.
+         *
+         * So the image is always kept. The template is extracted when it can
+         * be, and backfilled later by `employee-meals:build-templates` once a
+         * matcher exists. The screen says plainly which prints are searchable.
+         */
+        $template = null;
+        $pendingReason = null;
+
         try {
             $template = $this->matcher->extract($png);
         } catch (Throwable $e) {
-            return response()->json(['ok' => false, 'message' => $e->getMessage()], 422);
+            $pendingReason = $e->getMessage();
         }
 
-        if (! ($template['usable'] ?? false)) {
+        // Only judge quality when we could actually measure it. A faint print
+        // is still refused - a template with a handful of points matches
+        // everybody, and that surfaces months later as "it lets anyone in".
+        if ($template !== null && ! ($template['usable'] ?? false)) {
             return response()->json([
                 'ok' => false,
                 'message' => __('employee-meals::meals.fingerprints.errors.too_faint', [
@@ -144,10 +165,10 @@ class FingerprintController extends \App\Http\Controllers\Controller
             'em_employee_id' => $employee->id,
             'finger' => $data['finger'],
             'sample_no' => $next + 1,
-            'template' => json_encode($template),
+            'template' => $template !== null ? json_encode($template) : null,
             'image' => $png,
             'quality' => null,
-            'minutiae_count' => (int) $template['count'],
+            'minutiae_count' => $template !== null ? (int) $template['count'] : null,
             'enrolled_at' => Carbon::now(),
         ]);
 
@@ -155,7 +176,12 @@ class FingerprintController extends \App\Http\Controllers\Controller
             'ok' => true,
             'finger' => $data['finger'],
             'samples' => $next + 1,
-            'minutiae' => (int) $template['count'],
+            'minutiae' => $template !== null ? (int) $template['count'] : null,
+            'searchable' => $template !== null,
+            'pending_reason' => $pendingReason,
+            'message' => $template !== null
+                ? __('employee-meals::meals.fingerprints.stored_searchable', ['count' => (int) $template['count']])
+                : __('employee-meals::meals.fingerprints.stored_pending'),
             'state' => $this->enrolmentState($employee->fresh()),
         ]);
     }
@@ -246,19 +272,31 @@ class FingerprintController extends \App\Http\Controllers\Controller
         ]);
     }
 
-    /** @return array<string, array{enrolled: bool, samples: int}> */
+    /**
+     * Stored and searchable are different things, and the screen must not
+     * conflate them: a print with no template is safely on file but cannot be
+     * found by a finger at the till until a matcher exists.
+     *
+     * @return array<string, array{enrolled: bool, samples: int, searchable: int}>
+     */
     private function enrolmentState(Employee $employee): array
     {
-        $counts = Fingerprint::query()
+        $rows = Fingerprint::query()
             ->where('em_employee_id', $employee->id)
-            ->selectRaw('finger, COUNT(*) as n')
+            ->selectRaw('finger, COUNT(*) as n, SUM(template IS NOT NULL) as searchable')
             ->groupBy('finger')
-            ->pluck('n', 'finger');
+            ->get()
+            ->keyBy('finger');
 
         $state = [];
         foreach (Fingerprint::FINGERS as $finger) {
-            $n = (int) ($counts[$finger] ?? 0);
-            $state[$finger] = ['enrolled' => $n > 0, 'samples' => $n];
+            $row = $rows->get($finger);
+            $n = (int) ($row->n ?? 0);
+            $state[$finger] = [
+                'enrolled' => $n > 0,
+                'samples' => $n,
+                'searchable' => (int) ($row->searchable ?? 0),
+            ];
         }
 
         return $state;

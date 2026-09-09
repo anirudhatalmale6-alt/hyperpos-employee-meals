@@ -2,6 +2,7 @@
 
 namespace EmployeeMeals;
 
+use EmployeeMeals\Console\BuildTemplates;
 use EmployeeMeals\Models\MealCompany;
 use EmployeeMeals\Models\SubsidyPlan;
 use EmployeeMeals\Support\EntitlementEngine;
@@ -27,6 +28,10 @@ class EmployeeMealsServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerNavigation();
+
+        if ($this->app->runningInConsole()) {
+            $this->commands([BuildTemplates::class]);
+        }
     }
 
     /**

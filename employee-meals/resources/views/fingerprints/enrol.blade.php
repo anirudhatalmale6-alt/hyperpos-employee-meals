@@ -262,7 +262,11 @@
                                     <div>
                                         <div>{{ __('employee-meals::meals.fingerprints.fingers.'.$finger) }}</div>
                                         <div class="field-help"
-                                             x-text="state['{{ $finger }}'].samples + ' / 4'"></div>
+                                             x-text="state['{{ $finger }}'].samples + ' / 4'
+                                                 + (state['{{ $finger }}'].samples > 0
+                                                    && state['{{ $finger }}'].searchable < state['{{ $finger }}'].samples
+                                                    ? '  ({{ __('employee-meals::meals.fingerprints.fingers.stored_only') }})'
+                                                    : '')"></div>
                                     </div>
                                     <div class="flex items-center gap-2">
                                         <span class="badge"
@@ -454,8 +458,10 @@
                         const res = await this.post(this.routes.store, { finger, sample });
                         if (res.ok) {
                             this.state = res.state;
-                            this.message = res.minutiae + ' points captured.';
-                            this.log('stored: ' + res.minutiae + ' points');
+                            this.message = res.message || 'Stored.';
+                            this.log(res.searchable
+                                ? ('stored and searchable: ' + res.minutiae + ' points')
+                                : 'stored, but not searchable yet - no matching engine on this server');
                         } else {
                             this.message = res.message || 'That capture could not be stored.';
                             this.log('server refused it: ' + (res.message || 'no reason given'));

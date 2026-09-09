@@ -20,14 +20,6 @@ use Throwable;
  */
 class FingerprintMatcher
 {
-    /** Interpreters to try, in order. Shared hosts often hide the real one. */
-    private const CANDIDATE_BINARIES = [
-        'python3',
-        '/usr/bin/python3',
-        '/opt/alt/python311/bin/python3.11',
-        '/usr/local/bin/python3',
-    ];
-
     private const EXTRACT_TIMEOUT = 30;
     private const MATCH_TIMEOUT = 60;
 
@@ -50,7 +42,11 @@ class FingerprintMatcher
             ];
         }
 
-        foreach (self::CANDIDATE_BINARIES as $binary) {
+        $tried = [];
+
+        foreach ($this->candidateBinaries() as $binary) {
+            $tried[] = $binary;
+
             try {
                 $result = Process::timeout(20)->run([
                     $binary, '-c', 'import cv2, numpy; print(cv2.__version__, numpy.__version__)',
@@ -63,7 +59,7 @@ class FingerprintMatcher
                 return [
                     'ok' => true,
                     'binary' => $binary,
-                    'detail' => 'OpenCV and NumPy found ('.trim($result->output()).').',
+                    'detail' => 'OpenCV and NumPy found at '.$binary.' ('.trim($result->output()).').',
                 ];
             }
         }
@@ -71,9 +67,31 @@ class FingerprintMatcher
         return [
             'ok' => false,
             'binary' => null,
+            // Name what was tried. "Not found" on its own leaves an operator
+            // with nowhere to go; the list plus the setting to change is
+            // something they can act on or hand to their host.
             'detail' => 'No Python with OpenCV and NumPy was found. Fingerprints can still be '
-                .'enrolled and stored; identification needs this before it will work.',
+                .'enrolled and stored; identification needs this before it will work. '
+                .'Tried: '.implode(', ', $tried).'. If Python is installed somewhere else on '
+                .'this server, set EMPLOYEE_MEALS_PYTHON in the .env file to its full path.',
         ];
+    }
+
+    /**
+     * Where to look for Python, configured path first.
+     *
+     * @return list<string>
+     */
+    private function candidateBinaries(): array
+    {
+        $configured = config('plugin.employee-meals.meals.python_binary');
+        $candidates = (array) config('plugin.employee-meals.meals.python_candidates', []);
+
+        if (is_string($configured) && trim($configured) !== '') {
+            array_unshift($candidates, trim($configured));
+        }
+
+        return array_values(array_unique(array_filter($candidates, 'is_string')));
     }
 
     /**

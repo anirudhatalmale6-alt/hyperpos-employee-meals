@@ -57,6 +57,7 @@ return [
             'enrolled' => 'Enrolled',
             'not_enrolled' => 'Not enrolled',
             'samples' => ':count of :target touches',
+            'stored_only' => 'stored, not searchable yet',
             'capture' => 'Capture',
             'capturing' => 'Place the finger on the reader…',
             'clear' => 'Clear',
@@ -73,6 +74,10 @@ return [
             'score' => 'Score :score, threshold :threshold, runner-up :runner',
             'runner_help' => 'The runner-up is the score of the next closest person. A high score means little if second place is right behind it.',
         ],
+
+        'stored_searchable' => 'Stored, :count points, searchable.',
+        'stored_pending' => 'Stored. It cannot be searched yet - this server has no matching engine. Nobody has to press again; I switch searching on later.',
+        'pending_notice' => ':count print(s) are stored but not searchable yet, because this server has no matching engine. They will start working once it is available - no re-enrolling.',
 
         'trace' => [
             'title' => 'Reader log',
