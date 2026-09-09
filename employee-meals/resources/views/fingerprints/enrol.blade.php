@@ -333,6 +333,24 @@
 
     <script>
         function employeeMealsEnrolment(config) {
+            /*
+             * ⚠️⚠️ The reader lives HERE, in the closure - never on the Alpine
+             * object.
+             *
+             * Alpine 3 wraps its state in @vue/reactivity, so anything assigned to
+             * `this` comes back as a Proxy on every read. The DigitalPersona SDK
+             * holds a WebSdk channel which calls native browser APIs internally,
+             * and a native method invoked with a proxied `this` throws "Illegal
+             * invocation". The promise from startAcquisition then rejects, the
+             * catch swallows it, and the operator sees the reader do absolutely
+             * nothing - which is exactly what was reported, on a PC where the same
+             * reader works fine on a page that does not use Alpine.
+             *
+             * The same applies to any live browser object: MediaStream, WebSocket,
+             * AudioContext. Keep them out of reactive state.
+             */
+            let reader = null;
+
             return {
                 ...config,
                 libsOk: false,
@@ -392,8 +410,10 @@
                 reader() {
                     const ns = (window.dp && window.dp.devices) || {};
                     if (!ns.FingerprintReader) { return null; }
-                    if (!this._api) { this._api = new ns.FingerprintReader(); }
-                    return this._api;
+                    // `reader` is the closure variable declared above - assigning to
+                    // `this` would hand the SDK to Alpine's reactivity proxy.
+                    if (!reader) { reader = new ns.FingerprintReader(); }
+                    return reader;
                 },
 
                 async probeReader() {

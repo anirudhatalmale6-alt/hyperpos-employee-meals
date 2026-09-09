@@ -28,6 +28,9 @@ Route::middleware(['ensure.installed', 'auth', 'store.selected', 'set.locale'])
         // ── Card and fingerprint enrolment ──────────────────────────────
         Route::get('enrol', [FingerprintController::class, 'index'])->name('enrol.index');
 
+        // Plain, framework-free reader test - see the controller docblock.
+        Route::get('enrol/selftest', [FingerprintController::class, 'selftest'])->name('enrol.selftest');
+
         // ⚠️ No .js on these paths. The Laravel front controller's rewrite
         // commonly excludes anything ending in .js, so a registered route with
         // that extension still 404s. Name them plainly and map to the file in

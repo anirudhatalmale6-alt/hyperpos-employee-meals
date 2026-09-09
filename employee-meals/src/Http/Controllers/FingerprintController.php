@@ -61,6 +61,20 @@ class FingerprintController extends \App\Http\Controllers\Controller
         ]);
     }
 
+    /**
+     * A bare page that drives the reader with no framework at all.
+     *
+     * The same reader works on another of our sites, so this isolates whether
+     * the fault is in how the enrolment screen drives the SDK or between the
+     * browser and the reader service.
+     */
+    public function selftest(): View
+    {
+        $this->allow('employee-meals.credentials.manage');
+
+        return view('employee-meals::fingerprints.selftest');
+    }
+
     /** Serve one SDK file. */
     public function sdk(string $name): BinaryFileResponse
     {

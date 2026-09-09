@@ -281,12 +281,20 @@
 
     <script>
         function employeePhoto(config) {
+            /*
+             * ⚠️ The MediaStream lives in the closure, not on the Alpine object.
+             * Alpine wraps its state in a reactivity proxy, and calling a native
+             * browser method with a proxied `this` can throw "Illegal invocation".
+             * Live browser objects - MediaStream, WebSocket, a vendor SDK - stay
+             * out of reactive state.
+             */
+            let stream = null;
+
             return {
                 preview: config.existing,
                 captured: '',
                 cameraOn: false,
                 message: '',
-                stream: null,
 
                 /** A chosen file - show it straight away, no upload needed. */
                 fromFile(event) {
@@ -306,7 +314,7 @@
                         return;
                     }
                     try {
-                        this.stream = await navigator.mediaDevices.getUserMedia({
+                        stream = await navigator.mediaDevices.getUserMedia({
                             video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
                             audio: false,
                         });
@@ -317,7 +325,7 @@
                     this.cameraOn = true;
                     this.message = '';
                     await this.$nextTick();
-                    this.$refs.video.srcObject = this.stream;
+                    this.$refs.video.srcObject = stream;
                 },
 
                 capture() {
@@ -355,9 +363,9 @@
                 },
 
                 stopCamera() {
-                    if (this.stream) {
-                        this.stream.getTracks().forEach((t) => t.stop());
-                        this.stream = null;
+                    if (stream) {
+                        stream.getTracks().forEach((t) => t.stop());
+                        stream = null;
                     }
                     this.cameraOn = false;
                 },
