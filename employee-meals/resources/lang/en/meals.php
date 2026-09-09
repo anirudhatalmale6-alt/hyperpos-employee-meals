@@ -15,8 +15,12 @@ return [
         'find_placeholder' => 'Name, employee number or card',
         'search' => 'Search',
         'no_matches' => 'No employee matches that search.',
-        'choose' => 'Choose an employee to enrol.',
+        'choose' => 'Search for an employee, then press Select to load them for enrolment.',
         'change' => 'Change employee',
+        'select' => 'Select',
+        'selected' => 'Selected',
+        'has_card' => 'Card :card',
+        'fingers_enrolled' => ':count of 4 fingers enrolled',
 
         'card' => [
             'title' => 'Access card',
@@ -87,6 +91,18 @@ return [
         'saved' => ':name has been saved.',
         'removed' => ':name has been removed.',
         'errors_title' => 'That could not be saved.',
+
+        'photo' => [
+            'none' => 'No photo',
+            'use_camera' => 'Use camera',
+            'take' => 'Take photo',
+            'cancel' => 'Cancel',
+            'remove' => 'Remove',
+            'taken' => 'Photo taken. Save the employee to keep it.',
+            'no_camera' => 'The camera could not be opened. Check the browser has permission.',
+            'needs_https' => 'The camera only works on a secure (https) address. Choose a file instead.',
+        ],
+
         'empty' => 'No employees yet.',
         'empty_sub' => 'Add the first employee to start issuing meal entitlements.',
         'no_results' => 'No employee matches that search.',

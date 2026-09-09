@@ -88,13 +88,66 @@
                                 </label>
                             </div>
 
-                            <label class="field">
+                            {{-- Photograph: show the face, not the file name. Either
+                                 choose a file or take a still with the webcam on this
+                                 PC; both end up in the same place. --}}
+                            <div class="field" x-data="employeePhoto({{ \Illuminate\Support\Js::from([
+                                'existing' => $employee->photo_path
+                                    ? \Illuminate\Support\Facades\Storage::url($employee->photo_path)
+                                    : null,
+                            ]) }})">
                                 <span class="field-label">{{ __('employee-meals::meals.employees.fields.photo') }}</span>
-                                <input type="file" name="photo" accept="image/*" class="pos-input">
-                                @if ($employee->photo_path)
-                                    <span class="field-help">{{ $employee->photo_path }}</span>
-                                @endif
-                            </label>
+
+                                <div class="flex items-start gap-4">
+                                    {{-- ⚠️ Sizes are inline, not Tailwind utilities.
+                                         Tailwind here is PRECOMPILED and only ships the
+                                         classes the vendor's own views use: w-28, h-28,
+                                         w-20, h-20 and bg-surface are all absent, so a
+                                         class-sized box silently renders at the image's
+                                         natural size and blows the card apart. Checked
+                                         against the built stylesheet. --}}
+                                    <div class="rounded overflow-hidden flex items-center justify-center shrink-0"
+                                         style="width:112px;height:112px;border:1px solid var(--border-subtle);background:var(--bg-surface)">
+                                        <img :src="preview" x-show="preview" x-cloak alt=""
+                                             style="width:100%;height:100%;object-fit:cover">
+                                        <span x-show="!preview" class="field-help">
+                                            {{ __('employee-meals::meals.employees.photo.none') }}
+                                        </span>
+                                    </div>
+
+                                    <div class="space-y-2">
+                                        <input type="file" name="photo" accept="image/*" class="pos-input"
+                                               x-ref="file" @change="fromFile($event)">
+                                        <input type="hidden" name="photo_capture" x-model="captured">
+
+                                        <div class="flex items-center gap-2">
+                                            <button type="button" class="pos-btn pos-btn-sm pos-btn-ghost"
+                                                    x-show="!cameraOn" @click="startCamera()">
+                                                <x-icon name="camera" class="w-4 h-4" />
+                                                {{ __('employee-meals::meals.employees.photo.use_camera') }}
+                                            </button>
+                                            <button type="button" class="pos-btn pos-btn-sm pos-btn-primary"
+                                                    x-show="cameraOn" x-cloak @click="capture()">
+                                                {{ __('employee-meals::meals.employees.photo.take') }}
+                                            </button>
+                                            <button type="button" class="pos-btn pos-btn-sm pos-btn-ghost"
+                                                    x-show="cameraOn" x-cloak @click="stopCamera()">
+                                                {{ __('employee-meals::meals.employees.photo.cancel') }}
+                                            </button>
+                                            <button type="button" class="pos-btn pos-btn-sm pos-btn-ghost"
+                                                    x-show="preview && !cameraOn" x-cloak @click="clearPhoto()">
+                                                {{ __('employee-meals::meals.employees.photo.remove') }}
+                                            </button>
+                                        </div>
+
+                                        <video x-ref="video" x-show="cameraOn" x-cloak autoplay playsinline muted
+                                               class="rounded" style="width:220px;border:1px solid var(--border-subtle)"></video>
+                                        <canvas x-ref="canvas" class="dt-hidden"></canvas>
+
+                                        <span class="field-help" x-text="message"></span>
+                                    </div>
+                                </div>
+                            </div>
 
                             <label class="field">
                                 <span class="field-label">{{ __('employee-meals::meals.employees.fields.notes') }}</span>
@@ -225,4 +278,84 @@
             </div>
         </form>
     </div>
+
+    <script>
+        function employeePhoto(config) {
+            return {
+                preview: config.existing,
+                captured: '',
+                cameraOn: false,
+                message: '',
+                stream: null,
+
+                /** A chosen file - show it straight away, no upload needed. */
+                fromFile(event) {
+                    const file = event.target.files && event.target.files[0];
+                    if (!file) { return; }
+                    this.captured = '';               // a file wins over an old still
+                    this.preview = URL.createObjectURL(file);
+                    this.message = '';
+                },
+
+                async startCamera() {
+                    // ⚠️ getUserMedia only exists on HTTPS (or localhost). On a plain
+                    // http:// page the property is simply absent, which would otherwise
+                    // read as "the button does nothing".
+                    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                        this.message = @js(__('employee-meals::meals.employees.photo.needs_https'));
+                        return;
+                    }
+                    try {
+                        this.stream = await navigator.mediaDevices.getUserMedia({
+                            video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+                            audio: false,
+                        });
+                    } catch (e) {
+                        this.message = @js(__('employee-meals::meals.employees.photo.no_camera'));
+                        return;
+                    }
+                    this.cameraOn = true;
+                    this.message = '';
+                    await this.$nextTick();
+                    this.$refs.video.srcObject = this.stream;
+                },
+
+                capture() {
+                    const video = this.$refs.video;
+                    const canvas = this.$refs.canvas;
+                    canvas.width = video.videoWidth || 640;
+                    canvas.height = video.videoHeight || 480;
+                    canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                    // JPEG at 0.85 keeps a 640x480 face well under the size limit.
+                    this.captured = canvas.toDataURL('image/jpeg', 0.85);
+                    this.preview = this.captured;
+
+                    // A still and a chosen file would both be submitted; clear the
+                    // file input so the still is unambiguously the one that counts.
+                    if (this.$refs.file) { this.$refs.file.value = ''; }
+
+                    this.stopCamera();
+                    this.message = @js(__('employee-meals::meals.employees.photo.taken'));
+                },
+
+                stopCamera() {
+                    if (this.stream) {
+                        this.stream.getTracks().forEach((t) => t.stop());
+                        this.stream = null;
+                    }
+                    this.cameraOn = false;
+                },
+
+                clearPhoto() {
+                    this.preview = null;
+                    this.captured = '';
+                    if (this.$refs.file) { this.$refs.file.value = ''; }
+                    this.message = '';
+                },
+
+                destroy() { this.stopCamera(); },
+            };
+        }
+    </script>
 </x-admin-layout>

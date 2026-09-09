@@ -102,6 +102,7 @@
                 <table class="dt-table dt-table--lines">
                     <thead>
                         <tr>
+                            <th></th>
                             <th>{{ __('employee-meals::meals.employees.columns.employee_no') }}</th>
                             <th>{{ __('employee-meals::meals.employees.columns.name') }}</th>
                             <th>{{ __('employee-meals::meals.employees.columns.department') }}</th>
@@ -115,6 +116,19 @@
                     <tbody>
                         @foreach ($employees as $employee)
                             <tr>
+                                {{-- Face view, so the list can be checked against the
+                                     person standing there. --}}
+                                <td>
+                                    @if ($employee->photo_path)
+                                        <img src="{{ \Illuminate\Support\Facades\Storage::url($employee->photo_path) }}"
+                                             alt="" class="rounded" style="width:40px;height:40px;object-fit:cover">
+                                    @else
+                                        <span class="rounded flex items-center justify-center"
+                                              style="width:40px;height:40px;border:1px solid var(--border-subtle)">
+                                            <x-icon name="user" class="w-4 h-4" />
+                                        </span>
+                                    @endif
+                                </td>
                                 <td>{{ $employee->employee_no }}</td>
                                 <td>{{ $employee->full_name }}</td>
                                 <td>{{ $employee->department?->name ?: '—' }}</td>

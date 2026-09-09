@@ -13,6 +13,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
@@ -190,6 +191,10 @@ class EmployeeController extends \App\Http\Controllers\Controller
                     ->ignore($employee->id),
             ],
             'photo' => ['nullable', 'image', 'max:4096'],
+            // A shot taken with the webcam arrives as a data URI rather than a
+            // file upload. Capped well above a 640x480 JPEG so a large frame
+            // is refused rather than silently truncated.
+            'photo_capture' => ['nullable', 'string', 'max:4000000'],
             'is_active' => ['nullable', 'boolean'],
             'meal_entitled' => ['nullable', 'boolean'],
             'notes' => ['nullable', 'string', 'max:2000'],
@@ -199,13 +204,52 @@ class EmployeeController extends \App\Http\Controllers\Controller
         ];
     }
 
+    /**
+     * A photograph arrives one of two ways - a chosen file, or a still taken
+     * with the webcam on this PC. Both end up in the same place.
+     */
     private function storePhoto(Request $request, ?string $existing): ?string
     {
-        if (! $request->hasFile('photo')) {
-            return $existing;
+        if ($request->hasFile('photo')) {
+            return $request->file('photo')->store('employee-meals/photos', 'public');
         }
 
-        return $request->file('photo')->store('employee-meals/photos', 'public');
+        $capture = (string) $request->input('photo_capture', '');
+        if ($capture !== '') {
+            return $this->storeCapture($capture) ?? $existing;
+        }
+
+        return $existing;
+    }
+
+    /**
+     * Decode a `data:image/jpeg;base64,…` still from the camera.
+     *
+     * ⚠️ The bytes are checked to be a real image before anything is written.
+     * A data URI is just a string from the browser, so trusting the declared
+     * type would let anything at all be saved under a .jpg name.
+     */
+    private function storeCapture(string $dataUri): ?string
+    {
+        if (! preg_match('#^data:image/(jpeg|jpg|png);base64,#i', $dataUri, $m)) {
+            return null;
+        }
+
+        $binary = base64_decode(substr($dataUri, strpos($dataUri, ',') + 1), true);
+        if ($binary === false || $binary === '') {
+            return null;
+        }
+
+        $info = @getimagesizefromstring($binary);
+        if ($info === false || ! in_array($info[2], [IMAGETYPE_JPEG, IMAGETYPE_PNG], true)) {
+            return null;
+        }
+
+        $extension = $info[2] === IMAGETYPE_PNG ? 'png' : 'jpg';
+        $path = 'employee-meals/photos/'.Str::uuid()->toString().'.'.$extension;
+        Storage::disk('public')->put($path, $binary);
+
+        return $path;
     }
 
     /** @return array<string, mixed> */

@@ -16,6 +16,7 @@
     <div class="page-wide"
          x-data="employeeMealsEnrolment({{ \Illuminate\Support\Js::from([
              'employeeId'  => $employee?->id,
+             'card'        => $employee?->card_number ?? '',
              'state'       => $enrolled,
              'fingers'     => $fingers,
              'sdk'         => [
@@ -77,18 +78,40 @@
                         @endif
 
                         @if ($matches->isNotEmpty())
+                            {{-- Each row carries an explicit SELECT, which loads that
+                                 person into the enrolment section below with their
+                                 card and finger state. The search term is kept in the
+                                 link so the list survives the click. --}}
                             <table class="dt-table dt-table--lines">
                                 <tbody>
                                     @foreach ($matches as $match)
                                         <tr>
+                                            <td>
+                                                @if ($match->photo_path)
+                                                    <img src="{{ \Illuminate\Support\Facades\Storage::url($match->photo_path) }}"
+                                                         alt="" class="rounded" style="width:36px;height:36px;object-fit:cover">
+                                                @else
+                                                    <span class="rounded flex items-center justify-center"
+                                                          style="width:36px;height:36px;border:1px solid var(--border-subtle)">
+                                                        <x-icon name="user" class="w-4 h-4" />
+                                                    </span>
+                                                @endif
+                                            </td>
                                             <td>{{ $match->employee_no }}</td>
                                             <td>{{ $match->full_name }}</td>
                                             <td>{{ $match->department?->name ?: '—' }}</td>
                                             <td class="dt-actions-col">
-                                                <a class="pos-btn pos-btn-sm pos-btn-ghost"
-                                                   href="{{ route('employee-meals.enrol.index', ['employee' => $match->id]) }}">
-                                                    {{ __('employee-meals::meals.employees.actions.edit') }}
-                                                </a>
+                                                @if ($employee && $employee->id === $match->id)
+                                                    <span class="badge badge-positive">
+                                                        {{ __('employee-meals::meals.fingerprints.selected') }}
+                                                    </span>
+                                                @else
+                                                    <a class="pos-btn pos-btn-sm pos-btn-primary"
+                                                       href="{{ route('employee-meals.enrol.index', ['employee' => $match->id, 'q' => $q]) }}">
+                                                        <x-icon name="check" class="w-4 h-4" />
+                                                        {{ __('employee-meals::meals.fingerprints.select') }}
+                                                    </a>
+                                                @endif
                                             </td>
                                         </tr>
                                     @endforeach
@@ -97,10 +120,21 @@
                         @endif
 
                         @if ($employee)
+                            {{-- The person now loaded for enrolment, with their face so
+                                 the operator can check it against whoever is standing
+                                 in front of them. --}}
                             <div class="flex items-center gap-4">
+                                {{-- Inline sizing: w-20/h-20 are not in the compiled
+                                     stylesheet, see the note in the employee form. --}}
                                 @if ($employee->photo_path)
                                     <img src="{{ \Illuminate\Support\Facades\Storage::url($employee->photo_path) }}"
-                                         alt="" class="w-16 h-16 rounded object-cover">
+                                         alt="" class="rounded"
+                                         style="width:80px;height:80px;object-fit:cover">
+                                @else
+                                    <span class="rounded flex items-center justify-center"
+                                          style="width:80px;height:80px;border:1px solid var(--border-subtle)">
+                                        <x-icon name="user" class="w-6 h-6" />
+                                    </span>
                                 @endif
                                 <div>
                                     <div class="card-title">{{ $employee->full_name }}</div>
@@ -109,6 +143,21 @@
                                         @if ($employee->department) · {{ $employee->department->name }} @endif
                                         @if ($employee->company) · {{ $employee->company->name }} @endif
                                     </div>
+                                    <div class="field-help">
+                                        @if ($employee->card_number)
+                                            {{ __('employee-meals::meals.fingerprints.has_card', ['card' => $employee->card_number]) }}
+                                        @else
+                                            {{ __('employee-meals::meals.employees.status.no_card') }}
+                                        @endif
+                                        ·
+                                        {{ __('employee-meals::meals.fingerprints.fingers_enrolled', [
+                                            'count' => collect($enrolled)->where('enrolled', true)->count(),
+                                        ]) }}
+                                    </div>
+                                    <a href="{{ route('employee-meals.enrol.index', ['q' => $q]) }}"
+                                       class="pos-btn pos-btn-sm pos-btn-ghost mt-2">
+                                        {{ __('employee-meals::meals.fingerprints.change') }}
+                                    </a>
                                 </div>
                             </div>
                         @else
@@ -130,8 +179,7 @@
                                      browser suggestion list would swallow the keystrokes --}}
                                 <input type="text" class="pos-input" autocomplete="off"
                                        x-model="cardNumber"
-                                       @keydown.enter.prevent="saveCard()"
-                                       value="{{ $employee->card_number }}">
+                                       @keydown.enter.prevent="saveCard()">
                                 <span class="field-help">{{ __('employee-meals::meals.fingerprints.card.help') }}</span>
                             </label>
                             <div class="flex items-center gap-3">
@@ -286,7 +334,11 @@
                 testResult: null,
 
                 init() {
-                    this.cardNumber = document.querySelector('[x-model="cardNumber"]')?.value || '';
+                    // ⚠️ Take the card from the server payload, not from the input's
+                    // value attribute: x-model writes the (empty) property into the
+                    // field on init, so reading the DOM here returns nothing and the
+                    // existing card silently disappears on the first save.
+                    this.cardNumber = this.card || '';
                     this.loadSdk();
                 },
 
