@@ -15,6 +15,21 @@ return [
     'python_binary' => env('EMPLOYEE_MEALS_PYTHON'),
 
     /*
+     * Where the numpy and opencv packages live, if they are not installed
+     * system wide.
+     *
+     * ⚠️ THIS IS THE SETTING THAT MATTERED. On shared hosting you rarely get
+     * to install into the system Python, so the packages go into a folder in
+     * the home directory with `pip install --target`, and Python has to be
+     * told where to look. Our other install does exactly this - the binary
+     * was always present, only PYTHONPATH was missing - and without it the
+     * check reports "no Python found" when Python is right there.
+     *
+     * Example: /home/u123456/.python-packages
+     */
+    'python_path' => env('EMPLOYEE_MEALS_PYTHONPATH'),
+
+    /*
      * Extra places to look, tried in order after the configured binary.
      */
     'python_candidates' => [

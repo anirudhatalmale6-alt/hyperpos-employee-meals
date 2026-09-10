@@ -48,7 +48,7 @@ class FingerprintMatcher
             $tried[] = $binary;
 
             try {
-                $result = Process::timeout(20)->run([
+                $result = $this->python(20)->run([
                     $binary, '-c', 'import cv2, numpy; print(cv2.__version__, numpy.__version__)',
                 ]);
             } catch (Throwable $e) {
@@ -72,9 +72,36 @@ class FingerprintMatcher
             // something they can act on or hand to their host.
             'detail' => 'No Python with OpenCV and NumPy was found. Fingerprints can still be '
                 .'enrolled and stored; identification needs this before it will work. '
-                .'Tried: '.implode(', ', $tried).'. If Python is installed somewhere else on '
-                .'this server, set EMPLOYEE_MEALS_PYTHON in the .env file to its full path.',
+                .'Tried: '.implode(', ', $tried).'. '
+                .($this->pythonPath() !== null
+                    ? 'Package folder: '.$this->pythonPath().'. '
+                    : 'No package folder is configured. On shared hosting the packages usually '
+                      .'live in a home directory rather than system wide - install them with '
+                      .'pip install --target and set EMPLOYEE_MEALS_PYTHONPATH to that folder. ')
+                .'The interpreter itself can be set with EMPLOYEE_MEALS_PYTHON.',
         ];
+    }
+
+    /**
+     * A process runner carrying PYTHONPATH when the packages are not system wide.
+     *
+     * ⚠️ Without this the interpreter is found but `import cv2` fails, and the
+     * whole thing reports "no Python found" while Python is sitting right
+     * there. That is precisely what happened on this client's second server.
+     */
+    private function python(int $timeout)
+    {
+        $process = Process::timeout($timeout);
+        $path = $this->pythonPath();
+
+        return $path === null ? $process : $process->env(['PYTHONPATH' => $path]);
+    }
+
+    private function pythonPath(): ?string
+    {
+        $configured = config('plugin.employee-meals.meals.python_path');
+
+        return is_string($configured) && trim($configured) !== '' ? trim($configured) : null;
     }
 
     /**
@@ -202,7 +229,7 @@ class FingerprintMatcher
 
         $script = dirname(__DIR__, 2).'/resources/python/fpmatch.py';
 
-        $result = Process::timeout($timeout)->run(
+        $result = $this->python($timeout)->run(
             array_merge([$diagnostics['binary'], $script], $args)
         );
 
